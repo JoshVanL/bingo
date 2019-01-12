@@ -21,6 +21,12 @@ func New(cmd string, args []string) *Command {
 			return builtin.Cd(args)
 		}
 
+	case "exit":
+		cmdF = func(ch <-chan os.Signal) error {
+			builtin.Exit()
+			return nil
+		}
+
 	default:
 
 		cmd := exec.Command(cmd, args...)
