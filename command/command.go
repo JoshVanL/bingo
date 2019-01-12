@@ -8,10 +8,19 @@ import (
 	"github.com/joshvanl/bingo/command/builtin"
 )
 
-func Execute(cmd string, args []string) error {
+type Command struct {
+	cmdF func(ch <-chan os.Signal) error
+}
+
+func New(cmd string, args []string) *Command {
+	var cmdF func(ch <-chan os.Signal) error
+
 	switch cmd {
 	case "cd":
-		return builtin.Cd(args)
+		cmdF = func(ch <-chan os.Signal) error {
+			return builtin.Cd(args)
+		}
+
 	default:
 
 		cmd := exec.Command(cmd, args...)
@@ -23,11 +32,45 @@ func Execute(cmd string, args []string) error {
 			Setpgid: true,
 		}
 
-		if err := cmd.Start(); err != nil {
-			return err
+		cmdF = func(ch <-chan os.Signal) error {
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+
+			done := make(chan struct{})
+			defer close(done)
+
+			go func() {
+				for {
+					select {
+					case sig := <-ch:
+						s, ok := sig.(syscall.Signal)
+						if !ok {
+							continue
+						}
+
+						syscall.Kill(cmd.Process.Pid, s)
+						continue
+
+					case <-done:
+						break
+					}
+				}
+			}()
+
+			err := cmd.Wait()
+			_, ok := err.(*exec.ExitError)
+			if !ok {
+				return err
+			}
+
+			return nil
 		}
-
-		return cmd.Wait()
-
 	}
+
+	return &Command{cmdF}
+}
+
+func (c *Command) Execute(ch <-chan os.Signal) error {
+	return c.cmdF(ch)
 }

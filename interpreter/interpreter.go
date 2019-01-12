@@ -1,21 +1,27 @@
 package interpreter
 
 import (
+	"os"
 	"strings"
 
 	"github.com/joshvanl/bingo/command"
 )
 
-func Run(pi *string) error {
+func Parse(pi *string) func(ch <-chan os.Signal) error {
 	if pi == nil {
-		return nil
+		return func(ch <-chan os.Signal) error {
+			return nil
+		}
 	}
 
-	cmd, args := parse(pi)
-	return command.Execute(cmd, args)
+	cmd, args := split(pi)
+	c := command.New(cmd, args)
+	return func(ch <-chan os.Signal) error {
+		return c.Execute(ch)
+	}
 }
 
-func parse(pi *string) (string, []string) {
+func split(pi *string) (string, []string) {
 	fields := strings.Fields(*pi)
 
 	if len(fields) == 1 {
