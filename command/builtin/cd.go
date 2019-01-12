@@ -19,15 +19,20 @@ func Cd(args []string) error {
 }
 
 func reduce(arg string) string {
-	if len(arg) < 2 {
+	if len(arg) < 1 {
 		return arg
+	}
+
+	if len(arg) > 1 && arg[0] == '~' &&
+		arg[1] == '/' {
+		arg = os.Getenv("HOME") + arg[1:]
 	}
 
 	n := 0
 	i := rune(arg[0])
 	for m, a := range arg[1:] {
 		if i == '/' && a == '/' {
-			n = m
+			n = m + 1
 		}
 
 		i = a
