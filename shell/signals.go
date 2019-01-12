@@ -7,9 +7,9 @@ import (
 )
 
 func (s *Shell) signalHandler() <-chan os.Signal {
-	sigCh := make(chan os.Signal, 1)
+	sigCh := make(chan os.Signal, 10)
 	signal.Notify(sigCh)
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 10)
 
 	go func() {
 		for {

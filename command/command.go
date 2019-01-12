@@ -30,35 +30,49 @@ func New(cmd string, args []string) *Command {
 
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setpgid: true,
+			Noctty:  true,
 		}
 
 		cmdF = func(ch <-chan os.Signal) error {
-			if err := cmd.Start(); err != nil {
-				return err
-			}
+
+			//if err := cmd.Process.Release(); err != nil {
+			//	return err
+			//}
 
 			done := make(chan struct{})
 			defer close(done)
 
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+
 			go func() {
 				for {
 					select {
+					case <-done:
+						return
+
 					case sig := <-ch:
 						s, ok := sig.(syscall.Signal)
 						if !ok {
 							continue
 						}
 
+						if s == syscall.SIGCHLD {
+							return
+						}
+
 						syscall.Kill(cmd.Process.Pid, s)
 						continue
-
-					case <-done:
-						break
 					}
 				}
 			}()
 
 			err := cmd.Wait()
+			if err == nil {
+				return err
+			}
+
 			_, ok := err.(*exec.ExitError)
 			if !ok {
 				return err

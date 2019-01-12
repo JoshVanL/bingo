@@ -2,9 +2,9 @@ package shell
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
+	"syscall"
 
 	"github.com/joshvanl/bingo/interpreter"
 	"github.com/joshvanl/bingo/prompt"
@@ -14,21 +14,19 @@ import (
 type Shell struct {
 	prompt *prompt.Prompt
 
-	in, out, err *os.File
+	in       *bufio.Reader
+	out, err *bufio.Writer
 
 	sig    <-chan os.Signal
 	readCh <-chan *string
-
-	reader *bufio.Reader
 }
 
 func New() *Shell {
 	s := &Shell{
 		prompt: prompt.New(),
-		in:     os.Stdin,
-		out:    os.Stdout,
-		err:    os.Stderr,
-		reader: bufio.NewReader(os.Stdin),
+		in:     bufio.NewReader(os.Stdin),
+		out:    bufio.NewWriter(os.Stdout),
+		err:    bufio.NewWriter(os.Stderr),
 	}
 
 	s.sig = s.signalHandler()
@@ -47,24 +45,42 @@ func (s *Shell) Prompt() {
 func (s *Shell) Run() {
 	var i string
 
-	select {
-	case <-s.sig:
-		s.output("\n")
-		return
-	case pi := <-s.readCh:
-		i = *pi
+LOOP:
+	for {
+		select {
+		case sig := <-s.sig:
+
+			if sig == syscall.SIGCHLD {
+				continue LOOP
+			}
+
+			s.output("\n")
+			return
+
+		case pi := <-s.readCh:
+			i = *pi
+			break LOOP
+		}
 	}
 
 	if i[0] == '\n' {
-		i = i[:len(i)-1]
+		i = i[1:]
 	}
 
 	if len(i) == 0 {
 		return
 	}
 
+	if i[len(i)-1] == '\n' {
+		i = i[:len(i)-1]
+	}
+
 	f := interpreter.Parse(&i)
 	s.must(f(s.sig))
+
+	for len(s.sig) > 0 {
+		<-s.sig
+	}
 }
 
 func (s *Shell) listenStdin() chan *string {
@@ -72,7 +88,7 @@ func (s *Shell) listenStdin() chan *string {
 
 	go func() {
 		for {
-			i, err := s.reader.ReadString('\n')
+			i, err := s.in.ReadString('\n')
 			if err != nil {
 				if err == io.EOF {
 					os.Exit(0)
@@ -91,11 +107,13 @@ func (s *Shell) listenStdin() chan *string {
 
 func (s *Shell) must(err error) {
 	if err != nil {
-		fmt.Fprint(s.err, "bingo error: ", err.Error(), "\n")
+		s.err.WriteString("bingo error: " + err.Error() + "\n")
+		s.err.Flush()
 	}
 }
 
 func (s *Shell) output(os ...string) {
-	_, err := fmt.Fprint(s.out, utils.Join(os))
+	_, err := s.out.WriteString(utils.Join(os))
 	s.must(err)
+	s.must(s.out.Flush())
 }
