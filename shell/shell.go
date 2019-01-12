@@ -14,19 +14,21 @@ import (
 type Shell struct {
 	prompt *prompt.Prompt
 
-	in       *bufio.Reader
+	in       *os.File
 	out, err *bufio.Writer
 
-	sig    <-chan os.Signal
-	readCh <-chan *string
+	sig        <-chan os.Signal
+	readCh     <-chan *string
+	holdReader chan struct{}
 }
 
 func New() *Shell {
 	s := &Shell{
-		prompt: prompt.New(),
-		in:     bufio.NewReader(os.Stdin),
-		out:    bufio.NewWriter(os.Stdout),
-		err:    bufio.NewWriter(os.Stderr),
+		prompt:     prompt.New(),
+		in:         os.Stdin,
+		out:        bufio.NewWriter(os.Stdout),
+		err:        bufio.NewWriter(os.Stderr),
+		holdReader: make(chan struct{}),
 	}
 
 	s.sig = s.signalHandler()
@@ -68,6 +70,7 @@ LOOP:
 	}
 
 	if len(i) == 0 {
+		s.holdReader <- struct{}{}
 		return
 	}
 
@@ -81,6 +84,8 @@ LOOP:
 	for len(s.sig) > 0 {
 		<-s.sig
 	}
+
+	s.holdReader <- struct{}{}
 }
 
 func (s *Shell) listenStdin() chan *string {
@@ -88,7 +93,8 @@ func (s *Shell) listenStdin() chan *string {
 
 	go func() {
 		for {
-			i, err := s.in.ReadString('\n')
+			reader := bufio.NewReader(s.in)
+			i, err := reader.ReadString('\n')
 			if err != nil {
 				if err == io.EOF {
 					os.Exit(0)
@@ -99,6 +105,7 @@ func (s *Shell) listenStdin() chan *string {
 			}
 
 			ch <- &i
+			<-s.holdReader
 		}
 	}()
 
