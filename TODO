@@ -1,5 +1,4 @@
-Set up vt100 termianl to capture per rune Stdin to watch for escape characters etc.
+Extend golang terminal package for our use case
 Create history and tabbing features
-
 
 Begin to lay the groundwork for AST for the bingo script/shell language

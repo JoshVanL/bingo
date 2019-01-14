@@ -8,7 +8,16 @@ import (
 
 	"github.com/joshvanl/bingo/interpreter"
 	"github.com/joshvanl/bingo/prompt"
+	"golang.org/x/sys/unix"
+
 	"github.com/joshvanl/bingo/utils"
+)
+
+const (
+	keyEscape = 27
+
+	ioctlReadTermios  = unix.TCGETS
+	ioctlWriteTermios = unix.TCSETS
 )
 
 type Shell struct {
@@ -16,6 +25,8 @@ type Shell struct {
 
 	in       *os.File
 	out, err *bufio.Writer
+
+	oldState *unix.Termios
 
 	sig        <-chan os.Signal
 	readCh     <-chan *string
@@ -33,6 +44,23 @@ func New() *Shell {
 
 	s.sig = s.signalHandler()
 	s.readCh = s.listenStdin()
+
+	fd := int(os.Stdin.Fd())
+	termios, err := unix.IoctlGetTermios(fd, ioctlReadTermios)
+	s.must(err)
+
+	oldState := termios
+	s.oldState = oldState
+
+	termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
+	termios.Oflag &^= unix.OPOST
+	termios.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+	termios.Cflag &^= unix.CSIZE | unix.PARENB
+	termios.Cflag |= unix.CS8
+	termios.Cc[unix.VMIN] = 1
+	termios.Cc[unix.VTIME] = 0
+	err = unix.IoctlSetTermios(fd, ioctlWriteTermios, termios)
+	s.must(err)
 
 	return s
 }
@@ -65,7 +93,7 @@ LOOP:
 		}
 	}
 
-	if i[0] == '\n' {
+	for len(i) > 0 && (i[0] == '\r' || i[0] == '\n') {
 		i = i[1:]
 	}
 
@@ -90,22 +118,60 @@ LOOP:
 
 func (s *Shell) listenStdin() chan *string {
 	ch := make(chan *string)
+	buff := make([]byte, 0, 1024)
 
 	go func() {
 		for {
-			reader := bufio.NewReader(s.in)
-			i, err := reader.ReadString('\n')
+			b := make([]byte, 1)
+			_, err := s.in.Read(b)
 			if err != nil {
 				if err == io.EOF {
-					os.Exit(0)
+					s.die(0)
 				}
-
 				s.must(err)
+			}
+
+			os.Stdout.Write(b)
+			buff = append(buff, b[0])
+
+			//if b[0] == '\r' {
+			//	continue
+			//}
+
+			if b[0] == 13 {
+
+				os.Stdout.Write([]byte{keyEscape, '[', 'B'})
+				//os.Stdout.Write([]byte{'\r', '\n'})
+				i := string(buff[:len(buff)])
+				ch <- &i
+				buff = make([]byte, 0, 1024)
+				<-s.holdReader
+
 				continue
 			}
 
-			ch <- &i
-			<-s.holdReader
+			//io.Copy(s.out, s.in)
+			//r, _, err := reader.ReadRune()
+			//s.must(err)
+			//fmt.Printf("here %s\n", r)
+
+			//if r != 27 {
+			//	s.out.WriteRune(r)
+			//}
+
+			//fmt.Printf(">%s\n", r)
+			//i, err := reader.ReadString('\n')
+			//if err != nil {
+			//	if err == io.EOF {
+			//		os.Exit(0)
+			//	}
+
+			//	s.must(err)
+			//	continue
+			//}
+
+			//ch <- &i
+			//<-s.holdReader
 		}
 	}()
 
@@ -114,7 +180,7 @@ func (s *Shell) listenStdin() chan *string {
 
 func (s *Shell) must(err error) {
 	if err != nil {
-		s.err.WriteString("bingo error: " + err.Error() + "\n")
+		s.err.WriteString("bingo: " + err.Error() + "\n")
 		s.err.Flush()
 	}
 }
@@ -123,4 +189,9 @@ func (s *Shell) output(os ...string) {
 	_, err := s.out.WriteString(utils.Join(os))
 	s.must(err)
 	s.must(s.out.Flush())
+}
+
+func (s *Shell) die(exitCode int) {
+	unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlWriteTermios, s.oldState)
+	os.Exit(exitCode)
 }

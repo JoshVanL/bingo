@@ -16,7 +16,7 @@ func (s *Shell) signalHandler() <-chan os.Signal {
 			sig := <-sigCh
 			switch sig {
 			case syscall.SIGTERM:
-				os.Exit(0)
+				s.die(0)
 
 			default:
 				ch <- sig
