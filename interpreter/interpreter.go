@@ -8,7 +8,7 @@ import (
 )
 
 func Parse(pi *string) func(ch <-chan os.Signal) error {
-	if pi == nil {
+	if pi == nil || len(strings.TrimSpace(*pi)) == 0 {
 		return func(ch <-chan os.Signal) error {
 			return nil
 		}

@@ -26,7 +26,8 @@ type Shell struct {
 	in       *os.File
 	out, err *bufio.Writer
 
-	oldState *unix.Termios
+	currState, oldState unix.Termios
+	fd                  int
 
 	sig        <-chan os.Signal
 	readCh     <-chan *string
@@ -45,12 +46,11 @@ func New() *Shell {
 	s.sig = s.signalHandler()
 	s.readCh = s.listenStdin()
 
-	fd := int(os.Stdin.Fd())
-	termios, err := unix.IoctlGetTermios(fd, ioctlReadTermios)
+	s.fd = int(os.Stdin.Fd())
+	termios, err := unix.IoctlGetTermios(s.fd, ioctlReadTermios)
 	s.must(err)
 
-	oldState := termios
-	s.oldState = oldState
+	s.oldState = *termios
 
 	termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
 	termios.Oflag &^= unix.OPOST
@@ -59,7 +59,8 @@ func New() *Shell {
 	termios.Cflag |= unix.CS8
 	termios.Cc[unix.VMIN] = 1
 	termios.Cc[unix.VTIME] = 0
-	err = unix.IoctlSetTermios(fd, ioctlWriteTermios, termios)
+	s.currState = *termios
+	err = unix.IoctlSetTermios(s.fd, ioctlWriteTermios, termios)
 	s.must(err)
 
 	return s
@@ -69,7 +70,7 @@ func (s *Shell) Prompt() {
 	p, err := s.prompt.String()
 	s.must(err)
 
-	s.output(p)
+	s.output("\r", p)
 }
 
 func (s *Shell) Run() {
@@ -84,7 +85,7 @@ LOOP:
 				continue LOOP
 			}
 
-			s.output("\n")
+			s.output("\r\n")
 			return
 
 		case pi := <-s.readCh:
@@ -93,21 +94,10 @@ LOOP:
 		}
 	}
 
-	for len(i) > 0 && (i[0] == '\r' || i[0] == '\n') {
-		i = i[1:]
-	}
-
-	if len(i) == 0 {
-		s.holdReader <- struct{}{}
-		return
-	}
-
-	if i[len(i)-1] == '\n' {
-		i = i[:len(i)-1]
-	}
-
 	f := interpreter.Parse(&i)
+	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.oldState))
 	s.must(f(s.sig))
+	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.currState))
 
 	for len(s.sig) > 0 {
 		<-s.sig
@@ -134,21 +124,33 @@ func (s *Shell) listenStdin() chan *string {
 			os.Stdout.Write(b)
 			buff = append(buff, b[0])
 
-			//if b[0] == '\r' {
-			//	continue
-			//}
+			if b[0] == 4 {
+				os.Exit(0)
+			}
 
-			if b[0] == 13 {
-
-				os.Stdout.Write([]byte{keyEscape, '[', 'B'})
-				//os.Stdout.Write([]byte{'\r', '\n'})
+			if b[0] == '\r' {
+				os.Stdout.Write([]byte{'\n', '\r'})
 				i := string(buff[:len(buff)])
 				ch <- &i
 				buff = make([]byte, 0, 1024)
 				<-s.holdReader
-
-				continue
 			}
+
+			//if b[0] == '\r' {
+			//	continue
+			//}
+
+			//if b[0] == 13 {
+
+			//	os.Stdout.Write([]byte{keyEscape, '[', 'B'})
+			//	//os.Stdout.Write([]byte{'\r', '\n'})
+			//	i := string(buff[:len(buff)])
+			//	ch <- &i
+			//	buff = make([]byte, 0, 1024)
+			//	<-s.holdReader
+
+			//	continue
+			//}
 
 			//io.Copy(s.out, s.in)
 			//r, _, err := reader.ReadRune()
@@ -180,7 +182,7 @@ func (s *Shell) listenStdin() chan *string {
 
 func (s *Shell) must(err error) {
 	if err != nil {
-		s.err.WriteString("bingo: " + err.Error() + "\n")
+		s.err.WriteString("bingo: " + err.Error() + "\n\r")
 		s.err.Flush()
 	}
 }
@@ -192,6 +194,6 @@ func (s *Shell) output(os ...string) {
 }
 
 func (s *Shell) die(exitCode int) {
-	unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlWriteTermios, s.oldState)
+	unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlWriteTermios, &s.oldState)
 	os.Exit(exitCode)
 }
