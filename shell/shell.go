@@ -6,11 +6,11 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/joshvanl/bingo/interpreter"
-	"github.com/joshvanl/bingo/prompt"
 	"golang.org/x/sys/unix"
 
-	"github.com/joshvanl/bingo/utils"
+	"github.com/joshvanl/bingo/interpreter"
+	"github.com/joshvanl/bingo/prompt"
+	"github.com/joshvanl/bingo/shell/terminal"
 )
 
 const (
@@ -44,11 +44,12 @@ func New() *Shell {
 	}
 
 	s.sig = s.signalHandler()
-	s.readCh = s.listenStdin()
 
 	s.fd = int(os.Stdin.Fd())
 	termios, err := unix.IoctlGetTermios(s.fd, ioctlReadTermios)
 	s.must(err)
+
+	s.readCh = s.listenStdin()
 
 	s.oldState = *termios
 
@@ -66,12 +67,12 @@ func New() *Shell {
 	return s
 }
 
-func (s *Shell) Prompt() {
-	p, err := s.prompt.String()
-	s.must(err)
-
-	s.output("\r", p)
-}
+//func (s *Shell) Prompt() {
+//	p, err := s.prompt.String()
+//	s.must(err)
+//
+//	s.output('\r', p...)
+//}
 
 func (s *Shell) Run() {
 	var i string
@@ -85,7 +86,7 @@ LOOP:
 				continue LOOP
 			}
 
-			s.output("\r\n")
+			//s.output("\r\n")
 			return
 
 		case pi := <-s.readCh:
@@ -108,12 +109,13 @@ LOOP:
 
 func (s *Shell) listenStdin() chan *string {
 	ch := make(chan *string)
-	buff := make([]byte, 0, 1024)
+	//buff := make([]byte, 0, 1024)
+
+	term := terminal.NewTerminal(s.in, s.prompt.String)
 
 	go func() {
 		for {
-			b := make([]byte, 1)
-			_, err := s.in.Read(b)
+			line, err := term.ReadLine()
 			if err != nil {
 				if err == io.EOF {
 					s.die(0)
@@ -121,61 +123,41 @@ func (s *Shell) listenStdin() chan *string {
 				s.must(err)
 			}
 
-			os.Stdout.Write(b)
-			buff = append(buff, b[0])
-
-			if b[0] == 4 {
-				os.Exit(0)
-			}
-
-			if b[0] == '\r' {
-				os.Stdout.Write([]byte{'\n', '\r'})
-				i := string(buff[:len(buff)])
-				ch <- &i
-				buff = make([]byte, 0, 1024)
-				<-s.holdReader
-			}
-
-			//if b[0] == '\r' {
-			//	continue
-			//}
-
-			//if b[0] == 13 {
-
-			//	os.Stdout.Write([]byte{keyEscape, '[', 'B'})
-			//	//os.Stdout.Write([]byte{'\r', '\n'})
-			//	i := string(buff[:len(buff)])
-			//	ch <- &i
-			//	buff = make([]byte, 0, 1024)
-			//	<-s.holdReader
-
-			//	continue
-			//}
-
-			//io.Copy(s.out, s.in)
-			//r, _, err := reader.ReadRune()
-			//s.must(err)
-			//fmt.Printf("here %s\n", r)
-
-			//if r != 27 {
-			//	s.out.WriteRune(r)
-			//}
-
-			//fmt.Printf(">%s\n", r)
-			//i, err := reader.ReadString('\n')
-			//if err != nil {
-			//	if err == io.EOF {
-			//		os.Exit(0)
-			//	}
-
-			//	s.must(err)
-			//	continue
-			//}
-
-			//ch <- &i
-			//<-s.holdReader
+			ch <- &line
+			<-s.holdReader
 		}
 	}()
+
+	//go func() {
+	//	for {
+	//		b := make([]byte, 1)
+	//		_, err := s.in.Read(b)
+	//		if err != nil {
+	//			if err == io.EOF {
+	//				s.die(0)
+	//			}
+	//			s.must(err)
+	//		}
+
+	//		os.Stdout.Write(b)
+	//		buff = append(buff, b[0])
+
+	//		switch b[0] {
+	//		case 4:
+	//			s.die(0)
+
+	//		case 127:
+	//			os.Stdout.Write([]byte{keyEscape, '[', 'D'})
+
+	//		case '\r':
+	//			os.Stdout.Write([]byte{'\n', '\r'})
+	//			i := string(buff[:len(buff)])
+	//			ch <- &i
+	//			buff = make([]byte, 0, 1024)
+	//			<-s.holdReader
+	//		}
+	//	}
+	//}()
 
 	return ch
 }
@@ -187,8 +169,8 @@ func (s *Shell) must(err error) {
 	}
 }
 
-func (s *Shell) output(os ...string) {
-	_, err := s.out.WriteString(utils.Join(os))
+func (s *Shell) output(os ...rune) {
+	_, err := s.out.WriteString(string(os))
 	s.must(err)
 	s.must(s.out.Flush())
 }

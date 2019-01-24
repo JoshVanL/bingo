@@ -6,19 +6,19 @@ import (
 )
 
 type Prompt struct {
-	fs []func() (string, error)
+	fs []func() ([]rune, error)
 
 	outputF func(os ...string)
 }
 
 func New() *Prompt {
 	return &Prompt{
-		fs: []func() (string, error){cwd, dollar},
+		fs: []func() ([]rune, error){cwd, dollar},
 	}
 }
 
-func (p *Prompt) String() (string, error) {
-	var out string
+func (p *Prompt) String() []rune {
+	var out []rune
 	var errs error
 
 	for _, f := range p.fs {
@@ -28,16 +28,21 @@ func (p *Prompt) String() (string, error) {
 			continue
 		}
 
-		out = out + s
+		out = append(out, s...)
 	}
 
-	return out, errs
+	if errs != nil {
+		fmt.Fprint(os.Stderr, "prompt error: ", errs.Error())
+	}
+
+	return out
 }
 
-func dollar() (string, error) {
-	return ":$ ", nil
+func dollar() ([]rune, error) {
+	return []rune(":$ "), nil
 }
 
-func cwd() (string, error) {
-	return os.Getwd()
+func cwd() ([]rune, error) {
+	wd, err := os.Getwd()
+	return []rune(wd), err
 }

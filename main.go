@@ -8,7 +8,6 @@ func main() {
 	shell := shell.New()
 
 	for {
-		shell.Prompt()
 		shell.Run()
 	}
 }
