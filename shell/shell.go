@@ -86,7 +86,6 @@ LOOP:
 				continue LOOP
 			}
 
-			//s.output("\r\n")
 			return
 
 		case pi := <-s.readCh:
@@ -109,7 +108,6 @@ LOOP:
 
 func (s *Shell) listenStdin() chan *string {
 	ch := make(chan *string)
-	//buff := make([]byte, 0, 1024)
 
 	term := terminal.NewTerminal(s.in, s.prompt.String)
 
@@ -127,37 +125,6 @@ func (s *Shell) listenStdin() chan *string {
 			<-s.holdReader
 		}
 	}()
-
-	//go func() {
-	//	for {
-	//		b := make([]byte, 1)
-	//		_, err := s.in.Read(b)
-	//		if err != nil {
-	//			if err == io.EOF {
-	//				s.die(0)
-	//			}
-	//			s.must(err)
-	//		}
-
-	//		os.Stdout.Write(b)
-	//		buff = append(buff, b[0])
-
-	//		switch b[0] {
-	//		case 4:
-	//			s.die(0)
-
-	//		case 127:
-	//			os.Stdout.Write([]byte{keyEscape, '[', 'D'})
-
-	//		case '\r':
-	//			os.Stdout.Write([]byte{'\n', '\r'})
-	//			i := string(buff[:len(buff)])
-	//			ch <- &i
-	//			buff = make([]byte, 0, 1024)
-	//			<-s.holdReader
-	//		}
-	//	}
-	//}()
 
 	return ch
 }

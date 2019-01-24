@@ -113,6 +113,7 @@ func NewTerminal(c io.ReadWriter, prompt func() []rune) *Terminal {
 }
 
 const (
+	keyCtrlC     = 3
 	keyCtrlD     = 4
 	keyCtrlU     = 21
 	keyEnter     = '\r'
@@ -513,6 +514,17 @@ func (t *Terminal) handleKey(key rune) (line string, ok bool) {
 		t.cursorX = 0
 		t.cursorY = 0
 		t.maxLine = 0
+	case keyCtrlC:
+		t.moveCursorToPos(len(t.line))
+		t.queue([]rune("^C\r\n"))
+		t.eraseNPreviousChars(t.countToLeftWord())
+		line = string(t.line)
+		ok = true
+		t.line = t.line[:0]
+		t.pos = 0
+		t.cursorX = 0
+		t.cursorY = 0
+		t.maxLine = 0
 	case keyDeleteWord:
 		// Delete zero or more spaces and then one or more characters.
 		t.eraseNPreviousChars(t.countToLeftWord())
@@ -536,11 +548,12 @@ func (t *Terminal) handleKey(key rune) (line string, ok bool) {
 	case keyCtrlU:
 		t.eraseNPreviousChars(t.pos)
 	case keyClearScreen:
+		prompt := t.prompt()
 		// Erases the screen and moves the cursor to the home position.
 		t.queue([]rune("\x1b[2J\x1b[H"))
-		t.queue(t.prompt())
+		t.queue(prompt)
 		t.cursorX, t.cursorY = 0, 0
-		t.advanceCursor(visualLength(t.prompt()))
+		t.advanceCursor(visualLength(prompt))
 		t.setLine(t.line, t.pos)
 	default:
 		if t.AutoCompleteCallback != nil {
@@ -783,6 +796,10 @@ type stRingBuffer struct {
 }
 
 func (s *stRingBuffer) Add(a string) {
+	if a == "" {
+		return
+	}
+
 	if s.entries == nil {
 		const defaultNumEntries = 100
 		s.entries = make([]string, defaultNumEntries)
