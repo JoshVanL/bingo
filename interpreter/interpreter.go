@@ -15,7 +15,7 @@ func Parse(pi *string) func(ch <-chan os.Signal) error {
 	}
 
 	cmd, args := split(pi)
-	c := command.New(cmd, args)
+	c := command.NewBin(cmd, args)
 	return func(ch <-chan os.Signal) error {
 		return c.Execute(ch)
 	}

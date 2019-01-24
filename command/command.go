@@ -12,7 +12,7 @@ type Command struct {
 	cmdF func(ch <-chan os.Signal) error
 }
 
-func New(cmd string, args []string) *Command {
+func NewBin(cmd string, args []string) *Command {
 	var cmdF func(ch <-chan os.Signal) error
 
 	switch cmd {
@@ -23,8 +23,7 @@ func New(cmd string, args []string) *Command {
 
 	case "exit":
 		cmdF = func(ch <-chan os.Signal) error {
-			builtin.Exit()
-			return nil
+			return builtin.Exit(args)
 		}
 
 	default:
