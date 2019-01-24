@@ -1,3 +1,5 @@
 Make prompt more efficient
+Add tabbing for better UX
+Add regex history search
 
 Begin to lay the groundwork for AST for the bingo script/shell language
