@@ -7,6 +7,10 @@ import (
 func main() {
 	shell := shell.New()
 
+	defer func() {
+		shell.TerminalOldState()
+	}()
+
 	for {
 		shell.Run()
 	}

@@ -1,22 +1,14 @@
 package ast
 
 import (
-	"errors"
+	"io"
+	"os"
 	"strings"
-)
 
-var (
-	badOperator  = errors.New("could not parse operator")
-	moreOperator = errors.New("parse error near '\\n'")
+	"github.com/joshvanl/bingo/command"
+	"github.com/joshvanl/bingo/interpreter/ast/errors"
+	"github.com/joshvanl/bingo/interpreter/ast/operators"
 )
-
-var operators = []string{
-	">",
-	"&>",
-	"&>>",
-	"&&",
-	"|",
-}
 
 type Program struct {
 	Statements []*Statement
@@ -29,24 +21,16 @@ type Statement struct {
 	Operators []Operator
 }
 
-//type Expression struct {
-//	Command string
-//}
+type Expression interface {
+	Execute(ch <-chan os.Signal) error
+	Stdout() io.ReadCloser
+}
 
-type Expression []string
+type Operator func() error
+type stringParseOp func(Expression, []string) (func() error, error)
 
-type Operator string
-
-const Print Operator = ">"
-const PrintStderr Operator = "&>"
-const Append Operator = ">>"
-const AppendStderr Operator = "&>>"
-const And Operator = "&&"
-const Pipe Operator = "|"
-const OperatorInValid Operator = ""
-
-func Parse(in string) (*Program, error) {
-	stmtsStr := strings.Split(in, ";")
+func Parse(in *string) (*Program, error) {
+	stmtsStr := strings.Split(*in, ";")
 
 	var stmts []*Statement
 	for _, s := range stmtsStr {
@@ -64,33 +48,48 @@ func Parse(in string) (*Program, error) {
 func parseStatement(stmtStr string) (*Statement, error) {
 	ss := strings.Fields(stmtStr)
 
-	var ops []Operator
-	exps := make([]Expression, 1)
+	var opsS []stringParseOp
+	expsS := make([][]string, 1)
 
 	expI := 0
 
 	for _, s := range ss {
-		o := toOpoerator(s)
-		if o != OperatorInValid {
-			if len(ops) >= len(exps) {
-				return nil, badOperator
+		o := toOperator(s)
+
+		if o != nil {
+			if len(opsS) >= len(expsS) {
+				return nil, errors.BadOperator
 			}
 
-			ops = append(ops, o)
+			opsS = append(opsS, o)
 			expI++
 
 			continue
 		}
 
-		if expI >= len(exps) {
-			exps = append(exps, Expression{})
+		if expI >= len(expsS) {
+			expsS = append(expsS, []string{})
 		}
 
-		exps[expI] = append(exps[expI], s)
+		expsS[expI] = append(expsS[expI], s)
 	}
 
-	if len(ops) >= len(exps) {
-		return nil, moreOperator
+	if len(opsS) >= len(expsS) {
+		return nil, errors.MissingExpression
+	}
+
+	exps := make([]Expression, len(expsS))
+	for i, e := range expsS {
+		exps[i] = command.NewBin(e[0], e[1:])
+	}
+
+	var err error
+	ops := make([]Operator, len(opsS))
+	for i, o := range opsS {
+		ops[i], err = o(exps[i], expsS[i])
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Statement{
@@ -99,21 +98,29 @@ func parseStatement(stmtStr string) (*Statement, error) {
 	}, nil
 }
 
-func toOpoerator(o string) Operator {
+func toOperator(o string) stringParseOp {
 	switch o {
 	case ">":
-		return Print
+		return func(cmd Expression, args []string) (func() error, error) {
+			return operators.Print(cmd.Stdout(), args)
+		}
+		//r, w := io.Pipe()
+		//f, err := operators.Print(r, "")
+		//return &Operator{
+		//	F:  f,
+		//	WC: w,
+		//}, err
 	case "&>":
-		return PrintStderr
+		return nil
 	case ">>":
-		return Append
+		return nil
 	case "&>>":
-		return AppendStderr
+		return nil
 	case "&&":
-		return And
+		return nil
 	case "|":
-		return Pipe
+		return nil
 	default:
-		return OperatorInValid
+		return nil
 	}
 }

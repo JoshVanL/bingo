@@ -50,7 +50,6 @@ func New() *Shell {
 	s.must(err)
 
 	s.readCh = s.listenStdin()
-
 	s.oldState = *termios
 
 	termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
@@ -94,7 +93,8 @@ LOOP:
 		}
 	}
 
-	f := interpreter.Parse(&i)
+	f, err := interpreter.Parse(&i)
+	s.must(err)
 	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.oldState))
 	s.must(f(s.sig))
 	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.currState))
@@ -145,4 +145,8 @@ func (s *Shell) output(os ...rune) {
 func (s *Shell) die(exitCode int) {
 	unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlWriteTermios, &s.oldState)
 	os.Exit(exitCode)
+}
+
+func (s *Shell) TerminalOldState() {
+	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.oldState))
 }

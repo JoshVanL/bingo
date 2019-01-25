@@ -1,6 +1,7 @@
 package command
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -8,21 +9,22 @@ import (
 	"github.com/joshvanl/bingo/command/builtin"
 )
 
-type Command struct {
-	cmdF func(ch <-chan os.Signal) error
+type Cmd struct {
+	f      func(ch <-chan os.Signal) error
+	stdout io.WriteCloser
 }
 
-func NewBin(cmd string, args []string) *Command {
-	var cmdF func(ch <-chan os.Signal) error
+func NewBin(cmd string, args []string) *Cmd {
+	command := new(Cmd)
 
 	switch cmd {
 	case "cd":
-		cmdF = func(ch <-chan os.Signal) error {
+		command.f = func(ch <-chan os.Signal) error {
 			return builtin.Cd(args)
 		}
 
 	case "exit":
-		cmdF = func(ch <-chan os.Signal) error {
+		command.f = func(ch <-chan os.Signal) error {
 			return builtin.Exit(args)
 		}
 
@@ -30,7 +32,13 @@ func NewBin(cmd string, args []string) *Command {
 
 		cmd := exec.Command(cmd, args...)
 		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
+
+		if command.stdout != nil {
+			cmd.Stdout = command.stdout
+		} else {
+			cmd.Stdout = os.Stdout
+		}
+
 		cmd.Stderr = os.Stderr
 
 		cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -38,7 +46,7 @@ func NewBin(cmd string, args []string) *Command {
 			Noctty:  true,
 		}
 
-		cmdF = func(ch <-chan os.Signal) error {
+		command.f = func(ch <-chan os.Signal) error {
 
 			//if err := cmd.Process.Release(); err != nil {
 			//	return err
@@ -87,9 +95,15 @@ func NewBin(cmd string, args []string) *Command {
 		}
 	}
 
-	return &Command{cmdF}
+	return command
 }
 
-func (c *Command) Execute(ch <-chan os.Signal) error {
-	return c.cmdF(ch)
+func (c *Cmd) Stdout() io.ReadCloser {
+	r, w := io.Pipe()
+	c.stdout = w
+	return r
+}
+
+func (c *Cmd) Execute(ch <-chan os.Signal) error {
+	return c.f(ch)
 }
