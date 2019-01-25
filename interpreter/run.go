@@ -29,15 +29,15 @@ func Run(stmt *ast.Statement, ch <-chan os.Signal) error {
 
 				wg.Done()
 			}()
+		}
 
-			err := stmt.Expressions[i].Execute(ch)
-			if err != nil {
+		err := stmt.Expressions[i].Execute(ch)
+		if err != nil {
 
-				errLock.Lock()
-				result = append(result, err)
-				errLock.Unlock()
+			errLock.Lock()
+			result = append(result, err)
+			errLock.Unlock()
 
-			}
 		}
 
 		wg.Wait()

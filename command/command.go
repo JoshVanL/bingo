@@ -32,12 +32,7 @@ func NewBin(cmd string, args []string) *Cmd {
 
 		cmd := exec.Command(cmd, args...)
 		cmd.Stdin = os.Stdin
-
-		if command.stdout != nil {
-			cmd.Stdout = command.stdout
-		} else {
-			cmd.Stdout = os.Stdout
-		}
+		cmd.Stdout = os.Stdout
 
 		cmd.Stderr = os.Stderr
 
@@ -48,9 +43,11 @@ func NewBin(cmd string, args []string) *Cmd {
 
 		command.f = func(ch <-chan os.Signal) error {
 
-			//if err := cmd.Process.Release(); err != nil {
-			//	return err
-			//}
+			if command.stdout != nil {
+				cmd.Stdout = command.stdout
+			} else {
+				cmd.Stdout = os.Stdout
+			}
 
 			done := make(chan struct{})
 			defer close(done)
@@ -82,6 +79,11 @@ func NewBin(cmd string, args []string) *Cmd {
 			}()
 
 			err := cmd.Wait()
+
+			if command.stdout != nil {
+				command.stdout.Close()
+			}
+
 			if err == nil {
 				return err
 			}

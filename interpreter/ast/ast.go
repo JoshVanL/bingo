@@ -86,7 +86,7 @@ func parseStatement(stmtStr string) (*Statement, error) {
 	var err error
 	ops := make([]Operator, len(opsS))
 	for i, o := range opsS {
-		ops[i], err = o(exps[i], expsS[i])
+		ops[i], err = o(exps[i], expsS[i+1])
 		if err != nil {
 			return nil, err
 		}
