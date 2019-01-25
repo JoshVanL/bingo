@@ -95,9 +95,12 @@ LOOP:
 
 	f, err := interpreter.Parse(&i)
 	s.must(err)
-	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.oldState))
-	s.must(f(s.sig))
-	s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.currState))
+
+	if err == nil {
+		s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.oldState))
+		s.must(f(s.sig))
+		s.must(unix.IoctlSetTermios(s.fd, ioctlWriteTermios, &s.currState))
+	}
 
 	for len(s.sig) > 0 {
 		<-s.sig
