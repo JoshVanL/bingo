@@ -102,7 +102,7 @@ func NewBin(cmd string, args []string, in io.ReadCloser) *Cmd {
 				return err
 			}
 
-			return nil
+			return err
 		}
 	}
 

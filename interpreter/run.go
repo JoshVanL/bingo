@@ -41,6 +41,14 @@ func Run(stmt *ast.Statement, ch <-chan os.Signal) error {
 				result = append(result, err)
 				errLock.Unlock()
 
+				if stmt.Err != nil {
+					stmt.Err.Close()
+				}
+
+				if stmt.Out != nil {
+					stmt.Out.Close()
+				}
+
 			}
 
 			wg.Done()

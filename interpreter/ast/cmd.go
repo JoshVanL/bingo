@@ -15,7 +15,8 @@ type cmd struct {
 var _ Expression = &cmd{}
 
 func (c *cmd) Run(ch <-chan os.Signal) error {
-	return c.cmd.Execute(ch)
+	err := c.cmd.Execute(ch)
+	return err
 }
 
 func (c *cmd) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
