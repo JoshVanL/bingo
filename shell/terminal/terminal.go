@@ -64,8 +64,9 @@ type Terminal struct {
 	// concurrent processing of a key press and a Write() call.
 	lock sync.Mutex
 
-	c      io.ReadWriter
-	prompt func() []rune
+	c          io.ReadWriter
+	prompt     func() []rune
+	currPrompt []rune
 
 	// line is the current line being entered.
 	line []rune
@@ -249,7 +250,7 @@ func (t *Terminal) moveCursorToPos(pos int) {
 		return
 	}
 
-	x := visualLength(t.prompt()) + pos
+	x := visualLength(t.currPrompt) + pos
 	y := x / t.termWidth
 	x = x % t.termWidth
 
@@ -557,7 +558,7 @@ func (t *Terminal) handleKey(key rune) (line string, ok bool) {
 	case keyCtrlU:
 		t.eraseNPreviousChars(t.pos)
 	case keyClearScreen:
-		prompt := t.prompt()
+		prompt := t.currPrompt
 		// Erases the screen and moves the cursor to the home position.
 		t.queue([]rune("\x1b[2J\x1b[H"))
 		t.queue(prompt)
@@ -680,7 +681,7 @@ func (t *Terminal) Write(buf []byte) (n int, err error) {
 		return
 	}
 
-	t.writeLine(t.prompt())
+	t.writeLine(t.currPrompt)
 	if t.echo {
 		t.writeLine(t.line)
 	}
@@ -709,8 +710,8 @@ func (t *Terminal) clearAndRepaintLinePlusNPrevious(numPrevLines int) {
 	t.move(t.cursorY, 0, 0, 0)
 	t.cursorX, t.cursorY = 0, 0
 
-	t.queue(t.prompt())
-	t.advanceCursor(visualLength(t.prompt()))
+	t.queue(t.currPrompt)
+	t.advanceCursor(visualLength(t.currPrompt))
 	t.writeLine(t.line)
 	t.moveCursorToPos(t.pos)
 }
@@ -848,6 +849,8 @@ func (t *Terminal) ReadLine() (line string, err error) {
 func (t *Terminal) readLine() (line string, err error) {
 	// t.lock must be held at this point
 
+	t.currPrompt = t.prompt()
+
 	ws := new(winsize)
 	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
 		uintptr(syscall.Stdin),
@@ -859,7 +862,7 @@ func (t *Terminal) readLine() (line string, err error) {
 	}
 
 	if t.cursorX == 0 && t.cursorY == 0 {
-		t.writeLine(t.prompt())
+		t.writeLine(t.currPrompt)
 		t.c.Write(t.outBuf)
 		t.outBuf = t.outBuf[:0]
 	}
