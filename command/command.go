@@ -10,8 +10,8 @@ import (
 )
 
 type Cmd struct {
-	f      func(ch <-chan os.Signal) error
-	stdout io.WriteCloser
+	f              func(ch <-chan os.Signal) error
+	stdout, stderr io.WriteCloser
 }
 
 func NewBin(cmd string, args []string) *Cmd {
@@ -33,7 +33,6 @@ func NewBin(cmd string, args []string) *Cmd {
 		cmd := exec.Command(cmd, args...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
-
 		cmd.Stderr = os.Stderr
 
 		cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -47,6 +46,12 @@ func NewBin(cmd string, args []string) *Cmd {
 				cmd.Stdout = command.stdout
 			} else {
 				cmd.Stdout = os.Stdout
+			}
+
+			if command.stderr != nil {
+				cmd.Stderr = command.stderr
+			} else {
+				cmd.Stderr = os.Stderr
 			}
 
 			done := make(chan struct{})
@@ -103,6 +108,12 @@ func NewBin(cmd string, args []string) *Cmd {
 func (c *Cmd) Stdout() io.ReadCloser {
 	r, w := io.Pipe()
 	c.stdout = w
+	return r
+}
+
+func (c *Cmd) Stderr() io.ReadCloser {
+	r, w := io.Pipe()
+	c.stderr = w
 	return r
 }
 

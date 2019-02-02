@@ -19,11 +19,12 @@ func Parse(pi *string) (func(ch <-chan os.Signal) error, error) {
 		return nil, err
 	}
 
-	//cmd, args := split(pi)
-	//c := command.NewBin(cmd, args)
-	//return func(ch <-chan os.Signal) error {
-	//	return c.Execute(ch)
-	//}
+	for _, s := range prog.Statements {
+		err := s.Prepare(os.Stdin, os.Stdout, os.Stderr)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return func(ch <-chan os.Signal) error {
 		for _, s := range prog.Statements {

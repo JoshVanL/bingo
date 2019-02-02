@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"io"
 	"os"
 	"sync"
 
@@ -13,38 +14,32 @@ func Run(stmt *ast.Statement, ch <-chan os.Signal) error {
 	var wg sync.WaitGroup
 	var result []error
 
+	wg.Add(len(stmt.Expressions))
+
+	go func() {
+		io.Copy(os.Stdout, stmt.Out)
+	}()
+
+	go func() {
+		io.Copy(os.Stderr, stmt.Err)
+	}()
+
 	for i := 0; i < len(stmt.Expressions); i++ {
+		go func(i int) {
+			err := stmt.Expressions[i].Run(ch)
+			if err != nil {
 
-		if i < len(stmt.Operators) {
-			wg.Add(1)
-			go func() {
-				err := stmt.Operators[i]()
-				if err != nil {
+				errLock.Lock()
+				result = append(result, err)
+				errLock.Unlock()
 
-					errLock.Lock()
-					result = append(result, err)
-					errLock.Unlock()
+			}
 
-				}
-
-				wg.Done()
-			}()
-		}
-
-		err := stmt.Expressions[i].Execute(ch)
-		if err != nil {
-
-			errLock.Lock()
-			result = append(result, err)
-			errLock.Unlock()
-
-		}
-
-		wg.Wait()
-		if result != nil {
-			return errors.Join(result)
-		}
+			wg.Done()
+		}(i)
 	}
 
-	return nil
+	wg.Wait()
+
+	return errors.Join(result)
 }
