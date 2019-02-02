@@ -8,14 +8,23 @@ import (
 )
 
 var _ Expression = &oPrint{}
+var _ Expression = &oAppend{}
 
 type oPrint struct {
 	args []string
-	err  io.WriteCloser
+	f    func() error
+}
+
+type oAppend struct {
+	args []string
 	f    func() error
 }
 
 func (o *oPrint) Run(ch <-chan os.Signal) error {
+	return o.f()
+}
+
+func (o *oAppend) Run(ch <-chan os.Signal) error {
 	return o.f()
 }
 
@@ -24,8 +33,23 @@ func (o *oPrint) nextToken(token string) bool {
 	return true
 }
 
+func (o *oAppend) nextToken(token string) bool {
+	o.args = append(o.args, token)
+	return true
+}
+
 func (o *oPrint) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 	f, err := operators.Print(in, o.args)
+	if err != nil {
+		return nil, inerr, err
+	}
+
+	o.f = f
+	return nil, inerr, nil
+}
+
+func (o *oAppend) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
+	f, err := operators.Append(in, o.args)
 	if err != nil {
 		return nil, inerr, err
 	}

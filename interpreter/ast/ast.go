@@ -103,7 +103,7 @@ func toOperator(token string) operator {
 	case "&>":
 		return nil
 	case ">>":
-		return nil
+		return new(oAppend)
 	case "&>>":
 		return nil
 	case "&&":
@@ -122,7 +122,7 @@ func isOperator(token string) bool {
 	case "&>":
 		return false
 	case ">>":
-		return false
+		return true
 	case "&>>":
 		return false
 	case "&&":
