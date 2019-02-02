@@ -66,13 +66,6 @@ func New() *Shell {
 	return s
 }
 
-//func (s *Shell) Prompt() {
-//	p, err := s.prompt.String()
-//	s.must(err)
-//
-//	s.output('\r', p...)
-//}
-
 func (s *Shell) Run() {
 	var i string
 

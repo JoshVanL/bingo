@@ -10,7 +10,9 @@ import (
 	"bytes"
 	"io"
 	"sync"
+	"syscall"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // EscapeCodes contains escape sequences that can be written to the terminal in
@@ -21,6 +23,13 @@ type EscapeCodes struct {
 
 	// Reset all attributes
 	Reset []byte
+}
+
+type winsize struct {
+	Row    uint16
+	Col    uint16
+	Xpixel uint16
+	Ypixel uint16
 }
 
 var vt100EscapeCodes = EscapeCodes{
@@ -838,6 +847,16 @@ func (t *Terminal) ReadLine() (line string, err error) {
 
 func (t *Terminal) readLine() (line string, err error) {
 	// t.lock must be held at this point
+
+	ws := new(winsize)
+	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(ws)))
+
+	if int(retCode) != -1 {
+		t.termWidth, t.termHeight = int(ws.Col), int(ws.Row)
+	}
 
 	if t.cursorX == 0 && t.cursorY == 0 {
 		t.writeLine(t.prompt())
