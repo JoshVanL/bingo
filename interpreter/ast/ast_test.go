@@ -1,55 +1,55 @@
 package ast
 
 import (
+	"os"
 	"testing"
 
 	"github.com/joshvanl/bingo/interpreter/ast/errors"
 )
 
-func Test_parseStatement(t *testing.T) {
-	_, err := parseStatement("foo > foo")
-	try(t, nil, err)
+func Test_Parse(t *testing.T) {
+	try(t, "foo > foo", nil)
+	try(t, "foo foo > foo", nil)
+	try(t, "foo > ", errors.MissingExpression)
+	try(t, "> ", errors.MissingExpression)
+	try(t, "foo && foo foooo foo", nil)
+	try(t, "foo && foo fooo foo  && foo", nil)
 
-	_, err = parseStatement("foo foo > foo")
-	try(t, nil, err)
-
-	_, err = parseStatement("foo >  ")
-	try(t, errors.MissingExpression, err)
-
-	_, err = parseStatement(">  ")
-	try(t, errors.MissingExpression, err)
-
-	//_, err = parseStatement("foo && foo fooo foo  ")
-	//try(t, nil, err)
-
-	//_, err = parseStatement("foo && foo fooo foo  && foo")
-	//try(t, nil, err)
-
-	//_, err = parseStatement("foo && foo fooo foo  && foo && ")
-	//try(t, errors.MissingExpression, err)
-
-	//_, err = parseStatement("foo && &&")
-	//try(t, errors.BadOperator, err)
-
-	//_, err = parseStatement("foo && && foo")
-	//try(t, errors.BadOperator, err)
+	//TODO:
+	//try(t, "foo && &&", errors.MissingExpression)
+	//try(t, "foo && && foo", errors.MissingExpression)
 }
 
-func try(t *testing.T, exp, got error) {
-	if exp == nil && got == nil {
-		return
+func try(t *testing.T, str string, exp error) {
+	p, err := Parse(&str)
+	if err != nil {
+		if exp == nil {
+			fatal(t, exp, err)
+		}
+
+		if exp.Error() != err.Error() {
+			fatal(t, exp, err)
+		}
 	}
 
-	if exp != nil && got == nil {
-		fatal(t, exp, got)
+	for _, s := range p.Statements {
+		err := s.Prepare(os.Stdin, os.Stdout, os.Stderr)
+
+		if err != nil {
+			if exp == nil {
+				fatal(t, exp, err)
+			}
+
+			if exp.Error() != err.Error() {
+				fatal(t, exp, err)
+			} else {
+				return
+			}
+		}
 	}
 
-	if exp == nil && got != nil {
-		fatal(t, exp, got)
-	}
-
-	if exp.Error() != got.Error() {
-		fatal(t, exp, got)
+	if exp != nil {
+		fatal(t, exp, nil)
 	}
 }
 

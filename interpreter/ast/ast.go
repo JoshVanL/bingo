@@ -120,11 +120,11 @@ func isOperator(token string) bool {
 	case ">":
 		return true
 	case "&>":
-		return true
+		return false
 	case ">>":
-		return true
+		return false
 	case "&>>":
-		return true
+		return false
 	case "&&":
 		return false
 	case "|":
