@@ -14,14 +14,22 @@ func Run(stmt *ast.Statement, ch <-chan os.Signal) error {
 	var wg sync.WaitGroup
 	var result []error
 
-	wg.Add(len(stmt.Expressions))
+	wg.Add(len(stmt.Expressions) + 2)
 
 	go func() {
-		io.Copy(os.Stdout, stmt.Out)
+		if stmt.Out != nil {
+			io.Copy(os.Stdout, stmt.Out)
+			stmt.Out.Close()
+		}
+		wg.Done()
 	}()
 
 	go func() {
-		io.Copy(os.Stderr, stmt.Err)
+		if stmt.Err != nil {
+			io.Copy(os.Stderr, stmt.Err)
+			stmt.Err.Close()
+		}
+		wg.Done()
 	}()
 
 	for i := 0; i < len(stmt.Expressions); i++ {

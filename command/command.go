@@ -14,7 +14,7 @@ type Cmd struct {
 	stdout, stderr io.WriteCloser
 }
 
-func NewBin(cmd string, args []string) *Cmd {
+func NewBin(cmd string, args []string, in io.ReadCloser) *Cmd {
 	command := new(Cmd)
 
 	switch cmd {
@@ -87,6 +87,10 @@ func NewBin(cmd string, args []string) *Cmd {
 
 			if command.stdout != nil {
 				command.stdout.Close()
+			}
+
+			if command.stderr != nil {
+				command.stderr.Close()
 			}
 
 			if err == nil {

@@ -11,14 +11,12 @@ var _ Expression = &oPrint{}
 
 type oPrint struct {
 	args []string
+	err  io.WriteCloser
 	f    func() error
 }
 
 func (o *oPrint) Run(ch <-chan os.Signal) error {
-	if err := o.f(); err != nil {
-		panic(err)
-	}
-	return nil
+	return o.f()
 }
 
 func (o *oPrint) nextToken(token string) bool {
@@ -29,9 +27,9 @@ func (o *oPrint) nextToken(token string) bool {
 func (o *oPrint) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 	f, err := operators.Print(in, o.args)
 	if err != nil {
-		return nil, nil, err
+		return nil, inerr, err
 	}
 
 	o.f = f
-	return nil, nil, nil
+	return nil, inerr, nil
 }

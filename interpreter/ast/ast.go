@@ -36,13 +36,9 @@ func (s *Statement) Prepare(in io.ReadCloser, out, serr io.WriteCloser) error {
 			return err
 		}
 
-		if fin != nil {
-			in = fin
-		}
+		in = fin
 
-		if ferr != nil {
-			inerr = ferr
-		}
+		inerr = ferr
 	}
 
 	s.Out = in
