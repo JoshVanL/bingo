@@ -17,6 +17,7 @@ type Statement struct {
 
 type Expression interface {
 	Run(<-chan os.Signal) error
+	Stop()
 	nextToken(string) bool
 	prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
 }
@@ -25,6 +26,7 @@ type operator interface {
 	nextToken(string) bool
 	prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
 	Run(<-chan os.Signal) error
+	Stop()
 }
 
 func (s *Statement) Prepare(in io.ReadCloser, out, serr io.WriteCloser) error {
@@ -37,7 +39,6 @@ func (s *Statement) Prepare(in io.ReadCloser, out, serr io.WriteCloser) error {
 		}
 
 		in = fin
-
 		inerr = ferr
 	}
 

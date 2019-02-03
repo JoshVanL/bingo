@@ -11,11 +11,14 @@ import (
 
 type Cmd struct {
 	f              func(ch <-chan os.Signal) error
+	stop           chan struct{}
 	stdout, stderr io.WriteCloser
 }
 
 func NewBin(cmd string, args []string, in io.ReadCloser) *Cmd {
-	command := new(Cmd)
+	command := &Cmd{
+		stop: make(chan struct{}),
+	}
 
 	switch cmd {
 	case "cd":
@@ -55,9 +58,9 @@ func NewBin(cmd string, args []string, in io.ReadCloser) *Cmd {
 			}
 
 			done := make(chan struct{})
-			defer close(done)
 
 			if err := cmd.Start(); err != nil {
+				close(done)
 				return err
 			}
 
@@ -93,14 +96,7 @@ func NewBin(cmd string, args []string, in io.ReadCloser) *Cmd {
 				command.stderr.Close()
 			}
 
-			if err == nil {
-				return err
-			}
-
-			_, ok := err.(*exec.ExitError)
-			if !ok {
-				return err
-			}
+			close(done)
 
 			return err
 		}
@@ -123,4 +119,8 @@ func (c *Cmd) Stderr() io.ReadCloser {
 
 func (c *Cmd) Execute(ch <-chan os.Signal) error {
 	return c.f(ch)
+}
+
+func (c *Cmd) Stop() {
+	close(c.stop)
 }

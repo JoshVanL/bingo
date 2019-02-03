@@ -12,20 +12,30 @@ var _ Expression = &oAppend{}
 
 type oPrint struct {
 	args []string
-	f    func() error
+	f    func(<-chan os.Signal) error
+	stop chan struct{}
 }
 
 type oAppend struct {
 	args []string
-	f    func() error
+	f    func(<-chan os.Signal) error
+	stop chan struct{}
 }
 
 func (o *oPrint) Run(ch <-chan os.Signal) error {
-	return o.f()
+	return o.f(ch)
+}
+
+func (o *oPrint) Stop() {
+	close(o.stop)
 }
 
 func (o *oAppend) Run(ch <-chan os.Signal) error {
-	return o.f()
+	return o.f(ch)
+}
+
+func (o *oAppend) Stop() {
+	close(o.stop)
 }
 
 func (o *oPrint) nextToken(token string) bool {
@@ -39,7 +49,8 @@ func (o *oAppend) nextToken(token string) bool {
 }
 
 func (o *oPrint) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
-	f, err := operators.Print(in, o.args)
+	o.stop = make(chan struct{})
+	f, err := operators.Print(in, o.args, o.stop)
 	if err != nil {
 		return nil, inerr, err
 	}
@@ -49,7 +60,8 @@ func (o *oPrint) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser,
 }
 
 func (o *oAppend) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
-	f, err := operators.Append(in, o.args)
+	o.stop = make(chan struct{})
+	f, err := operators.Append(in, o.args, o.stop)
 	if err != nil {
 		return nil, inerr, err
 	}

@@ -32,6 +32,19 @@ func Run(stmt *ast.Statement, ch <-chan os.Signal) error {
 		wg.Done()
 	}()
 
+	var stop bool
+	stopAll := func() {
+		if stop {
+			return
+		}
+
+		stop = true
+
+		for i := 0; i < len(stmt.Expressions); i++ {
+			stmt.Expressions[i].Stop()
+		}
+	}
+
 	for i := 0; i < len(stmt.Expressions); i++ {
 		go func(i int) {
 			err := stmt.Expressions[i].Run(ch)
@@ -39,6 +52,7 @@ func Run(stmt *ast.Statement, ch <-chan os.Signal) error {
 
 				errLock.Lock()
 				result = append(result, err)
+				stopAll()
 				errLock.Unlock()
 
 				if stmt.Err != nil {

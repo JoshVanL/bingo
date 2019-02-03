@@ -8,20 +8,20 @@ import (
 	"github.com/joshvanl/bingo/interpreter/ast/errors"
 )
 
-func Print(in io.ReadCloser, args []string) (func() error, error) {
-	return writeToFile(in, args, os.O_CREATE|os.O_WRONLY, true)
+func Print(in io.ReadCloser, args []string, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
+	return writeToFile(in, args, os.O_CREATE|os.O_WRONLY, true, stop)
 }
 
-func Append(in io.ReadCloser, args []string) (func() error, error) {
-	return writeToFile(in, args, os.O_APPEND|os.O_CREATE|os.O_WRONLY, false)
+func Append(in io.ReadCloser, args []string, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
+	return writeToFile(in, args, os.O_APPEND|os.O_CREATE|os.O_WRONLY, false, stop)
 }
 
-func writeToFile(in io.ReadCloser, args []string, flags int, remove bool) (func() error, error) {
+func writeToFile(in io.ReadCloser, args []string, flags int, remove bool, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
 	if len(args) < 1 {
 		return nil, errors.MissingExpression
 	}
 
-	return func() error {
+	return func(ch <-chan os.Signal) error {
 		perm := os.FileMode(0644)
 		info, err := os.Stat(args[0])
 		if err == nil {
@@ -40,19 +40,26 @@ func writeToFile(in io.ReadCloser, args []string, flags int, remove bool) (func(
 			return err
 		}
 
-		if _, err := io.Copy(f, in); err != nil {
-			f.Close()
-			return err
-		}
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-ch:
+				in.Close()
+			case <-stop:
+				in.Close()
+			case <-done:
+			}
+		}()
+
+		io.Copy(f, in)
+		close(done)
 
 		if len(args) > 1 {
 			_, err = f.Write([]byte(strings.Join(args[1:], " ")))
-			if err != nil {
-				f.Close()
-				return err
-			}
 		}
 
-		return f.Close()
+		f.Close()
+
+		return err
 	}, nil
 }

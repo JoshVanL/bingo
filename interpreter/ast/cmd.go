@@ -19,6 +19,10 @@ func (c *cmd) Run(ch <-chan os.Signal) error {
 	return err
 }
 
+func (c *cmd) Stop() {
+	c.cmd.Stop()
+}
+
 func (c *cmd) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 	c.cmd = command.NewBin(c.args[0], c.args[1:], in)
 	return c.cmd.Stdout(), c.cmd.Stderr(), nil
