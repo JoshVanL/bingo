@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -19,11 +20,11 @@ type Expression interface {
 	Run(<-chan os.Signal) error
 	Stop()
 	nextToken(string) bool
-	prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
+	prepare(in, inerr *os.File) (*os.File, *os.File, error)
 }
 
-func (s *Statement) Prepare(in io.ReadCloser, out, serr io.WriteCloser) error {
-	var inerr io.ReadCloser
+func (s *Statement) Prepare(in *os.File, out, serr io.WriteCloser) error {
+	var inerr *os.File
 
 	for _, e := range s.Expressions {
 		fin, ferr, err := e.prepare(in, inerr)
@@ -46,15 +47,22 @@ func Parse(in *string) (*Program, error) {
 
 	stmtsStr := strings.Split(*in, ";")
 	for _, s := range stmtsStr {
-		p.parseStmt(s)
+		err := p.parseStmt(s)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Program{p.Statements}, nil
 }
 
-func (p *Program) parseStmt(stmtStr string) {
+func (p *Program) parseStmt(stmtStr string) error {
 	tokens := strings.Fields(stmtStr)
 	s := new(Statement)
+
+	if isBadStart(tokens[0]) {
+		return fmt.Errorf("parse error near '%v'", tokens[0])
+	}
 
 	for len(tokens) != 0 {
 		var exp Expression
@@ -64,6 +72,8 @@ func (p *Program) parseStmt(stmtStr string) {
 	}
 
 	p.Statements = append(p.Statements, s)
+
+	return nil
 }
 
 func (s *Statement) parseExpression(tokens []string) (Expression, []string) {
@@ -103,8 +113,7 @@ func toOperator(token string) *operator {
 	case "&&":
 		return nil
 	case "|":
-		//return new(oPipe)
-		return nil
+		return newPipe()
 	default:
 		return nil
 	}
@@ -122,6 +131,15 @@ func isOperator(token string) bool {
 		return false
 	case "&&":
 		return false
+	case "|":
+		return true
+	default:
+		return false
+	}
+}
+
+func isBadStart(token string) bool {
+	switch token {
 	case "|":
 		return true
 	default:

@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"io"
 	"os"
 
 	"github.com/joshvanl/bingo/command"
@@ -23,8 +22,13 @@ func (c *cmd) Stop() {
 	c.cmd.Stop()
 }
 
-func (c *cmd) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
-	c.cmd = command.NewBin(c.args[0], c.args[1:], in)
+func (c *cmd) prepare(in, inerr *os.File) (*os.File, *os.File, error) {
+	var err error
+	c.cmd, err = command.NewBin(c.args[0], c.args[1:], in)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return c.cmd.Stdout(), c.cmd.Stderr(), nil
 }
 

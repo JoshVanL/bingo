@@ -8,15 +8,15 @@ import (
 	"github.com/joshvanl/bingo/interpreter/ast/errors"
 )
 
-func Print(in io.ReadCloser, args []string, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
+func Print(in *os.File, args []string, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
 	return writeToFile(in, args, os.O_CREATE|os.O_WRONLY, true, stop)
 }
 
-func Append(in io.ReadCloser, args []string, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
+func Append(in *os.File, args []string, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
 	return writeToFile(in, args, os.O_APPEND|os.O_CREATE|os.O_WRONLY, false, stop)
 }
 
-func writeToFile(in io.ReadCloser, args []string, flags int, remove bool, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
+func writeToFile(in *os.File, args []string, flags int, remove bool, stop <-chan struct{}) (func(<-chan os.Signal) error, error) {
 	if len(args) < 1 {
 		return nil, errors.MissingExpression
 	}
@@ -44,9 +44,9 @@ func writeToFile(in io.ReadCloser, args []string, flags int, remove bool, stop <
 		go func() {
 			select {
 			case <-ch:
-				in.Close()
+				f.Close()
 			case <-stop:
-				in.Close()
+				f.Close()
 			case <-done:
 			}
 		}()
