@@ -22,13 +22,6 @@ type Expression interface {
 	prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
 }
 
-type operator interface {
-	nextToken(string) bool
-	prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
-	Run(<-chan os.Signal) error
-	Stop()
-}
-
 func (s *Statement) Prepare(in io.ReadCloser, out, serr io.WriteCloser) error {
 	var inerr io.ReadCloser
 
@@ -97,19 +90,20 @@ func (s *Statement) parseExpression(tokens []string) (Expression, []string) {
 	return cmd, nil
 }
 
-func toOperator(token string) operator {
+func toOperator(token string) *operator {
 	switch token {
 	case ">":
-		return new(oPrint)
+		return newPrint()
 	case "&>":
 		return nil
 	case ">>":
-		return new(oAppend)
+		return newAppend()
 	case "&>>":
 		return nil
 	case "&&":
 		return nil
 	case "|":
+		//return new(oPipe)
 		return nil
 	default:
 		return nil
@@ -129,7 +123,7 @@ func isOperator(token string) bool {
 	case "&&":
 		return false
 	case "|":
-		return false
+		return true
 	default:
 		return false
 	}
