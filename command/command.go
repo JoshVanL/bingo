@@ -1,6 +1,7 @@
 package command
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -11,24 +12,12 @@ import (
 type Cmd struct {
 	f              func(ch <-chan os.Signal) error
 	stop           chan struct{}
-	stdout, stderr *os.File
+	stdout, stderr io.ReadCloser
 }
 
-func NewBin(cmd string, args []string, in *os.File) (*Cmd, error) {
-	rout, wout, err := os.Pipe()
-	if err != nil {
-		return nil, err
-	}
-
-	rerr, werr, err := os.Pipe()
-	if err != nil {
-		return nil, err
-	}
-
+func NewBin(cmd string, args []string, in io.ReadCloser) (*Cmd, error) {
 	command := &Cmd{
-		stop:   make(chan struct{}),
-		stdout: rout,
-		stderr: rerr,
+		stop: make(chan struct{}),
 	}
 
 	switch cmd {
@@ -46,12 +35,23 @@ func NewBin(cmd string, args []string, in *os.File) (*Cmd, error) {
 
 		cmd := exec.Command(cmd, args...)
 		cmd.Stdin = in
-		cmd.Stdout = wout
-		cmd.Stderr = werr
 
+		rerr, err := cmd.StderrPipe()
+		if err != nil {
+			return nil, err
+		}
+
+		rout, err := cmd.StdoutPipe()
+		if err != nil {
+			return nil, err
+		}
+
+		command.stdout = rout
+		command.stderr = rerr
+
+		// TODO: do these options
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setpgid: true,
-			Noctty:  true,
 		}
 
 		command.f = func(ch <-chan os.Signal) error {
@@ -86,8 +86,8 @@ func NewBin(cmd string, args []string, in *os.File) (*Cmd, error) {
 			}()
 
 			err := cmd.Wait()
-			wout.Close()
-			werr.Close()
+			//command.stderr.Close()
+			//command.stdout.Close()
 
 			close(done)
 
@@ -110,10 +110,10 @@ func (c *Cmd) Stop() {
 	close(c.stop)
 }
 
-func (c *Cmd) Stdout() *os.File {
+func (c *Cmd) Stdout() io.ReadCloser {
 	return c.stdout
 }
 
-func (c *Cmd) Stderr() *os.File {
+func (c *Cmd) Stderr() io.ReadCloser {
 	return c.stderr
 }

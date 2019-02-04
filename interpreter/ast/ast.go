@@ -20,11 +20,11 @@ type Expression interface {
 	Run(<-chan os.Signal) error
 	Stop()
 	nextToken(string) bool
-	prepare(in, inerr *os.File) (*os.File, *os.File, error)
+	prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
 }
 
-func (s *Statement) Prepare(in *os.File, out, serr io.WriteCloser) error {
-	var inerr *os.File
+func (s *Statement) Prepare(in io.ReadCloser, out, serr io.WriteCloser) error {
+	var inerr io.ReadCloser
 
 	for _, e := range s.Expressions {
 		fin, ferr, err := e.prepare(in, inerr)

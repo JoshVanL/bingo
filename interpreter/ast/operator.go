@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"io"
 	"os"
 
 	"github.com/joshvanl/bingo/interpreter/ast/operators"
@@ -13,13 +14,13 @@ type operator struct {
 	stop chan struct{}
 
 	f          func(<-chan os.Signal) error
-	prepareF   func(in, inerr *os.File) (*os.File, *os.File, error)
+	prepareF   func(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error)
 	nextTokenF func(token string) bool
 }
 
 func newPrint() *operator {
 	o := new(operator)
-	o.prepareF = func(in, inerr *os.File) (*os.File, *os.File, error) {
+	o.prepareF = func(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 		o.stop = make(chan struct{})
 		f, err := operators.Print(in, o.args, o.stop)
 		if err != nil {
@@ -40,7 +41,7 @@ func newPrint() *operator {
 
 func newAppend() *operator {
 	o := new(operator)
-	o.prepareF = func(in, inerr *os.File) (*os.File, *os.File, error) {
+	o.prepareF = func(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 		o.stop = make(chan struct{})
 		f, err := operators.Append(in, o.args, o.stop)
 		if err != nil {
@@ -61,7 +62,7 @@ func newAppend() *operator {
 
 func newPipe() *operator {
 	o := new(operator)
-	o.prepareF = func(in, inerr *os.File) (*os.File, *os.File, error) {
+	o.prepareF = func(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 		o.stop = make(chan struct{})
 		f, out, err := operators.Pipe(in, o.stop)
 		if err != nil {
@@ -87,7 +88,7 @@ func (o *operator) Stop() {
 	close(o.stop)
 }
 
-func (o *operator) prepare(in, inerr *os.File) (*os.File, *os.File, error) {
+func (o *operator) prepare(in, inerr io.ReadCloser) (io.ReadCloser, io.ReadCloser, error) {
 	return o.prepareF(in, inerr)
 }
 

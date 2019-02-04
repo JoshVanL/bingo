@@ -5,33 +5,23 @@ import (
 	"os"
 )
 
-func Pipe(in *os.File, stop <-chan struct{}) (func(<-chan os.Signal) error, *os.File, error) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	rp, wp := io.Pipe()
+func Pipe(in io.ReadCloser, stop <-chan struct{}) (func(<-chan os.Signal) error, io.ReadCloser, error) {
+	r, w := io.Pipe()
 	done := make(chan struct{})
 
 	return func(ch <-chan os.Signal) error {
 		go func() {
 			select {
 			case <-done:
+				w.Close()
 			case <-stop:
 			case <-ch:
 			}
-			wp.Close()
-			rp.Close()
-			r.Close()
-			w.Close()
+			//w.Close()
+			//r.Close()
 		}()
 
-		go func() {
-			io.Copy(wp, in)
-		}()
-
-		io.Copy(w, rp)
+		io.Copy(w, in)
 
 		close(done)
 
